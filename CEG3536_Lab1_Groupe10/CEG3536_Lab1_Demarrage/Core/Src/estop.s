@@ -1,7 +1,7 @@
 /* ---------------------------------------------------------------------------
  * estop.s — arrêt d'urgence par interruption externe (CEG 3536, laboratoire 1)
  *
- * Routines exportées : estop_init (À FAIRE), EXTI2_IRQHandler (À COMPLÉTER)
+ * Routines exportées : estop_init, EXTI2_IRQHandler
  * Variable (.bss)     : estop_flag
  *
  * Règle des interruptions (section 4.1) : l'ISR est courte. Exception exigée
@@ -32,8 +32,8 @@ estop_flag:     .space  4           /* 1 = E-Stop reçu, à consommer par fsm_st
 /* void estop_init(void)
  * Configure PB2 comme source de l'interruption EXTI2, priorité la plus élevée.
  *
- * À FAIRE (E4) :
- *   1. EXTI_EXTICR1 : champ EXTI2 (bits 18:16) = EXTICR_PORT_B (0x01).
+ * Étapes (E4) :
+ *   1. EXTI_EXTICR1 : champ EXTI2 (bits 23:16) = EXTICR_PORT_B (0x01).
  *      (lire, effacer le champ avec bic, insérer avec orr, écrire)
  *   2. Choisir le front qui correspond à l'APPUI selon BTN_ESTOP_ACTIF_HAUT :
  *      actif haut -> EXTI_RTSR1 |= EXTI_LIGNE2 ; actif bas -> EXTI_FTSR1 |= EXTI_LIGNE2.
@@ -49,16 +49,16 @@ estop_init:
 
     /* ----------------------------------------------------
      * 1. EXTI2 = port B
-     * EXTICR1 bits 18:16 = 001
+     * EXTICR1 champ EXTI2 (bits 23:16) = 0x01 (port B)
      * ---------------------------------------------------- */
     ldr     r0, =EXTI_BASE
 
     ldr     r1, [r0, #EXTI_EXTICR1]
 
-    ldr     r2, =0x00070000
+    ldr     r2, =EXTICR1_EXTI2_MASK
     bic     r1, r1, r2
 
-    ldr     r2, =0x00010000
+    ldr     r2, =(EXTICR_PORT_B << EXTICR1_EXTI2_POS)
     orr     r1, r1, r2
 
     str     r1, [r0, #EXTI_EXTICR1]
@@ -143,7 +143,7 @@ estop_front_configure_fin:
      * ---------------------------------------------------- */
 
     ldr     r0, =NVIC_ISER0
-    ldr     r1, =0x00002000
+    ldr     r1, =(1 << EXTI2_IRQn)
     str     r1, [r0]
 
     bx      lr
@@ -155,13 +155,13 @@ estop_front_configure_fin:
  * Le matériel empile automatiquement r0-r3, r12, lr, pc, xPSR : une ISR
  * feuille peut utiliser r0-r3 sans les sauvegarder et retourne par bx lr.
  *
- * À COMPLÉTER (E4) :
+ * Étapes (E4) :
  *   1. état sûr immédiat, par BSRR (pas de lecture-modification-écriture) :
  *        GPIOC_BSRR = 1 << (LED_VERTE_PIN + 16)   (verte éteinte)
  *        GPIOB_BSRR = 1 << (LED_BLEUE_PIN + 16)   (bleue éteinte)
  *        GPIOA_BSRR = 1 << LED_ROUGE_PIN          (rouge allumée)
  *   2. estop_flag = 1
- *   3. effacer la requête EXTI (fourni ci-dessous) et se terminer.
+ *   3. effacer la requête EXTI, attendre la fin de l'écriture (dsb), terminer.
  * Rien d'autre : pas de temporisation, pas de changement d'état ici.       */
 .global EXTI2_IRQHandler
 .type   EXTI2_IRQHandler, %function
@@ -205,6 +205,10 @@ EXTI2_IRQHandler:
 
     str     r1, [r0, #EXTI_RPR1]
     str     r1, [r0, #EXTI_FPR1]
+
+    /* dsb : garantit que l'effacement a atteint EXTI avant le retour,
+     * sinon le NVIC pourrait relancer l'ISR une deuxième fois. */
+    dsb
 
     bx      lr
 

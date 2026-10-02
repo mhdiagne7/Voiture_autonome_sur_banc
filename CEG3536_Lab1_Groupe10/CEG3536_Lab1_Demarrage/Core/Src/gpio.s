@@ -102,10 +102,19 @@ gpio_init:
  * r0 = LED_AUCUNE (0), LED_ROUGE (1), LED_VERTE (2), LED_BLEUE (3).
  * Allume exactement la DEL demandée et éteint les autres, par BSRR
  * (écriture atomique : jamais de lecture-modification-écriture sur ODR).
- * Registres modifiés : r1, r2 (r0 conservé).                                */
+ *
+ * E9 : la séquence « tout éteindre puis allumer » est une section critique
+ * (PRIMASK). Sans elle, l'ISR E-Stop pourrait allumer la rouge entre les deux
+ * étapes, puis led_set allumerait la verte : deux DEL allumées. L'interruption
+ * est seulement retardée de quelques cycles (quelques µs à 4 MHz), loin de la
+ * limite de 10 ms. PRIMASK est restauré à sa valeur d'entrée (appel possible
+ * avec les interruptions déjà masquées).
+ * Registres modifiés : r1-r3 (r0 conservé, routine feuille).                */
     .global led_set
     .type   led_set, %function
 led_set:
+    mrs     r3, primask                 /* sauvegarder l'état de masquage */
+    cpsid   i                           /* début de section critique */
     /* 1) tout éteindre */
     ldr     r1, =GPIOA_BASE
     mov     r2, #(1 << (LED_ROUGE_PIN + 16))
@@ -116,27 +125,28 @@ led_set:
     ldr     r1, =GPIOB_BASE
     mov     r2, #(1 << (LED_BLEUE_PIN + 16))
     str     r2, [r1, #GPIO_BSRR]
-    /* 2) allumer la DEL demandée */
+    /* 2) choisir le port et le bit de la DEL demandée */
     cmp     r0, #LED_ROUGE
     beq     led_set_rouge
     cmp     r0, #LED_VERTE
     beq     led_set_verte
     cmp     r0, #LED_BLEUE
     beq     led_set_bleue
-    bx      lr                          /* LED_AUCUNE ou valeur invalide */
+    b       led_set_fin                 /* LED_AUCUNE ou valeur invalide */
 led_set_rouge:
     ldr     r1, =GPIOA_BASE
     mov     r2, #(1 << LED_ROUGE_PIN)
-    str     r2, [r1, #GPIO_BSRR]
-    bx      lr
+    b       led_set_allumer
 led_set_verte:
     ldr     r1, =GPIOC_BASE
     mov     r2, #(1 << LED_VERTE_PIN)
-    str     r2, [r1, #GPIO_BSRR]
-    bx      lr
+    b       led_set_allumer
 led_set_bleue:
     ldr     r1, =GPIOB_BASE
     mov     r2, #(1 << LED_BLEUE_PIN)
-    str     r2, [r1, #GPIO_BSRR]
+led_set_allumer:
+    str     r2, [r1, #GPIO_BSRR]        /* 3) allumer */
+led_set_fin:
+    msr     primask, r3                 /* fin de section critique */
     bx      lr
     .size   led_set, .-led_set

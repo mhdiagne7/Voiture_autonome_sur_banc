@@ -39,7 +39,8 @@
     .equ EXTI_IMR1,             0x80        /* masque d'interruption         */
     .equ EXTI_EMR1,             0x84
     .equ EXTI_LIGNE2,           (1 << 2)
-    .equ EXTICR1_EXTI2_POS,     16          /* champ EXTI2 : bits 18:16      */
+    .equ EXTICR1_EXTI2_POS,     16          /* champ EXTI2 : bits 23:16      */
+    .equ EXTICR1_EXTI2_MASK,    (0xFF << EXTICR1_EXTI2_POS)
     .equ EXTICR_PORT_B,         0x01        /* 0 = A, 1 = B, 2 = C, ...      */
 
 /* ---- NVIC et SysTick (Cortex-M33, PM0264) ----------------------------- */
@@ -52,6 +53,9 @@
     .equ SYSTICK_CTRL,          0xE000E010
     .equ SYSTICK_LOAD,          0xE000E014
     .equ SYSTICK_VAL,           0xE000E018
+    .equ SYSTICK_CTRL_ENABLE,   (1 << 0)    /* compteur actif                */
+    .equ SYSTICK_CTRL_CLKSOURCE,(1 << 2)    /* 1 = horloge processeur        */
+    .equ SYSTICK_CTRL_COUNTFLAG,(1 << 16)   /* 1 = passage par 0 (effacé à la lecture) */
 
 /* ---- Brochage de la plateforme (guide, p. 25-29) ---------------------- */
     .equ LED_ROUGE_PIN,         9           /* LD3, PA9                      */
@@ -94,6 +98,9 @@
     .equ ANTIREBOND_MS,         30          /* fenêtre exigée : 20 à 50 ms   */
     .equ CLIGNOTEMENT_DEMI_MS,  250         /* 2 Hz : 250 ms allumée, 250 ms éteinte */
     .equ TOUCH_SIGNAL_MS,       100         /* extinction brève (E7)         */
-/* delay_ms : boucle calibrée. Horloge après réinitialisation : MSI 4 MHz.
- * Valeur de départ ~1000 itérations/ms ; À CALIBRER à l'oscilloscope (E8). */
-    .equ DELAY_BOUCLES_PAR_MS,  1000
+/* delay_ms : SysTick en scrutation (E8). Horloge après réinitialisation :
+ * MSI 4 MHz (SystemInit vide). SysTick compte de SYSTICK_RECHARGE_1MS à 0,
+ * soit exactement 4000 cycles = 1 ms ; précision = celle du MSI (à vérifier
+ * par la mesure de la période de clignotement, T6). */
+    .equ SYSCLK_HZ,             4000000
+    .equ SYSTICK_RECHARGE_1MS,  (SYSCLK_HZ / 1000 - 1)

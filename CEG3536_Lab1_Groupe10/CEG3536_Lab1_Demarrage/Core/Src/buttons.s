@@ -2,8 +2,8 @@
  * buttons.s — lecture des boutons, anti-rebond, temporisation
  *             (CEG 3536, laboratoire 1)
  *
- * Routines exportées (AAPCS) : button_raw (fournie), button_pressed (FAIT),
- *                              delay_ms (fournie, boucle calibrée)
+ * Routines exportées (AAPCS) : button_raw (fournie), button_pressed,
+ *                              delay_ms (SysTick en scrutation)
  * Variables (.bss)            : btn_valide[3], btn_compteur[3]
  * ------------------------------------------------------------------------- */
 #include "registres.inc"
@@ -123,22 +123,40 @@ button_pressed_oui:
     .size   button_pressed, .-button_pressed
 
 /* void delay_ms(uint32_t ms)
- * Temporisation par boucle calibrée (admise au laboratoire 1, E8).
- * Hypothèse : horloge MSI de 4 MHz après réinitialisation, code en flash.
- * DELAY_BOUCLES_PAR_MS (registres.inc) doit être CALIBRÉE par mesure au point
- * de test et la valeur retenue rapportée. SysTick sera exigé au laboratoire 2.
- * Registres modifiés : r0, r1 (routine feuille).                            */
+ * Temporisation par SysTick en scrutation, sans interruption (E8).
+ * Horloge : MSI 4 MHz après réinitialisation (SystemInit vide).
+ * Au premier appel, SysTick est démarré en mode continu : rechargement
+ * SYSTICK_RECHARGE_1MS (3999), horloge processeur -> un passage par 0 (bit
+ * COUNTFLAG) toutes les 1 ms exactement. Ensuite delay_ms attend r0 passages
+ * par 0. Comme SysTick ne s'arrête jamais, la période de la boucle
+ * principale (fsm_step + delay_ms(1)) vaut exactement 1 ms, quelle que soit
+ * la durée de fsm_step (tant qu'elle est < 1 ms).
+ * Le premier ms attendu est partiel : durée réelle entre (r0 - 1) et r0 ms.
+ * COUNTFLAG est remis à 0 par la lecture de SYST_CSR (PM0264).
+ * Registres modifiés : r0-r2 (routine feuille).                             */
     .global delay_ms
     .type   delay_ms, %function
 delay_ms:
     cbz     r0, delay_ms_fin
-delay_ms_boucle_ms:
-    ldr     r1, =DELAY_BOUCLES_PAR_MS
-delay_ms_boucle_int:
-    subs    r1, r1, #1
-    bne     delay_ms_boucle_int
+    ldr     r1, =SYSTICK_CTRL
+    ldr     r2, [r1]
+    tst     r2, #SYSTICK_CTRL_ENABLE
+    bne     delay_ms_attente                /* SysTick déjà en marche */
+
+    /* premier appel : SysTick 1 ms, horloge processeur, sans interruption */
+    ldr     r2, =SYSTICK_RECHARGE_1MS
+    str     r2, [r1, #(SYSTICK_LOAD - SYSTICK_CTRL)]
+    movs    r2, #0
+    str     r2, [r1, #(SYSTICK_VAL - SYSTICK_CTRL)]   /* efface VAL et COUNTFLAG */
+    movs    r2, #(SYSTICK_CTRL_CLKSOURCE | SYSTICK_CTRL_ENABLE)
+    str     r2, [r1]
+
+delay_ms_attente:
+    ldr     r2, [r1]                        /* lecture : efface COUNTFLAG */
+    tst     r2, #SYSTICK_CTRL_COUNTFLAG
+    beq     delay_ms_attente                /* attendre le passage par 0 */
     subs    r0, r0, #1
-    bne     delay_ms_boucle_ms
+    bne     delay_ms_attente
 delay_ms_fin:
     bx      lr
     .size   delay_ms, .-delay_ms

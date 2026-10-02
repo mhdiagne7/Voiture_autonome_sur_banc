@@ -31,7 +31,7 @@ SystemInit:
     .type   main, %function
 main:
     bl      gpio_init               /* horloges, DEL en sortie, boutons en entrée */
-    bl      estop_init              /* EXTI2 / NVIC pour PB2 (à compléter)  */
+    bl      estop_init              /* EXTI2 / NVIC pour PB2, priorité max (E4) */
     bl      fsm_init                /* état ARRÊT, DEL rouge seule (E1)     */
 
 boucle_principale:

@@ -69,9 +69,12 @@ Jalons internes du lab 1 :
 - Validations Git :
 
 ### Séance 2 — 29 sept. / 2 oct. 2026 — réalise : Mamadou Racine / valide : Mouhammad Diagne
-- Objectifs :
-- Fait :
+- Objectifs : E4 à E9, mesures T4 à T6, essais T7 à T10, démonstration.
+- Fait : `fsm_step` complète (consommation d'`estop_flag`, ARRÊT_URGENCE, User ignoré, acquittement Touch En si E-Stop relâché, bascule `touch_enabled`); `fsm_maj_del` (clignotement 2 Hz, extinction brève 100 ms); `delay_ms` par SysTick; section critique dans `led_set`; constantes nommées et `dsb` dans `estop.s`.
 - Décisions :
+  - `delay_ms` par SysTick en scrutation (1 ms = 4000 cycles à MSI 4 MHz) plutôt que par boucle calibrée : la période de la boucle principale reste exactement 1 ms, quelle que soit la durée de `fsm_step`.
+  - `button_pressed` est appelée à chaque pas pour User et Touch En, même en urgence, afin que l'anti-rebond reste à jour (un appui maintenu pendant l'urgence ne produit pas d'événement à la sortie).
+  - `led_set` masque les interruptions (PRIMASK) pendant quelques cycles : l'ISR E-Stop ne peut pas s'intercaler entre « tout éteindre » et « allumer » (E9).
 - Difficultés et solutions :
 - Essais et mesures :
 - Validations Git :

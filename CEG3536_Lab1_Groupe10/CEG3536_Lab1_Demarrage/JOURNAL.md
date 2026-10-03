@@ -53,7 +53,7 @@ Jalons internes du lab 1 :
 | E4 codé (`estop_init`, `EXTI2_IRQHandler`) | avant la séance 2 | ✅ fait | 26 sept. |
 | E5–E9 codés, compilation sans avertissement | avant la séance 2 | ✅ fait | 2 oct. |
 | Essais T1–T10 sur la carte | séance 2 | ✅ tous conformes (T6 : voir tableau des essais) | 2 oct. |
-| Démonstration devant l'assistant | séance 2 | ⏳ | |
+| Démonstration devant l'assistant | séance 2 | ✅ fait | 2 oct. |
 | Fiche périphérique « DEL et boutons » | 7 oct. | ⏳ | |
 | Brouillon du rapport | 7 oct. | ⏳ | |
 | Relecture croisée du rapport | 8 oct. | ⏳ | |
@@ -63,11 +63,11 @@ Jalons internes du lab 1 :
 
 ### Séance 0 — 15/18 septembre 2026 — réalise : Mouhammad Diagne / valide : Idriss Toure
 - Objectifs : prise en main de Leafy et de la Nucleo, projet STM32CubeIDE, dépôt Git.
-- Fait :
-- Décisions :
-- Difficultés et solutions :
-- Essais et mesures :
-- Validations Git (auteur, message) :
+- Fait : installation de STM32CubeIDE 2.2.0; import du projet de départ `CEG3536_Lab1_Demarrage`; compilation (Build), chargement et exécution sur la carte avec le débogueur ST-LINK (Debug, puis Resume); DEL rouge (LD3) allumée seule après le démarrage.
+- Décisions : utiliser le code de départ fourni tel quel pour l'organisation des fichiers et l'interface de la section 4.2.
+- Difficultés et solutions : aucune.
+- Essais et mesures : premier programme fonctionnel, DEL rouge allumée (E1 déjà assurée par le code de départ).
+- Validations Git (auteur, message) : dépôt créé plus tard (26 sept.), voir la séance 1.
 
 ### Séance 1 — 22/25 septembre 2026 — réalise : Idriss Toure / valide : Mamadou Racine
 - Objectifs : E1, E2, E3; mesure des niveaux logiques et du rebond; J1.

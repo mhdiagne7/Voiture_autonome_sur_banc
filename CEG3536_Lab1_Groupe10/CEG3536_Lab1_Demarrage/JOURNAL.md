@@ -45,10 +45,19 @@ Responsabilités par module (lab 1) :
 | 5 — Voiture autonome sur banc (C, projet intégré) | Semaine 12 (30 nov.–4 déc.) | Semaine 13 (7–9 déc.) | Selon l'énoncé du lab 5 | Mouhammad Diagne |
 
 Jalons internes du lab 1 :
-- 25–26 sept. : E1–E3 fonctionnels, J1 dans Git.
-- Avant la séance 2 : E4 à E7 codés, compilation sans avertissement, T1–T3 refaits sur la carte.
-- Séance 2 : mesures T4–T6, essais T7–T10, démonstration.
-- Au plus tard le 7 oct. : brouillon du rapport; relecture croisée le 8 oct.; remise le 9 oct.
+
+| Jalon | Échéance prévue | État | Date réelle |
+|---|---|---|---|
+| J1 : exigences, rôles, échéancier dans Git | 25 sept. | ✅ fait (un jour de retard) | 26 sept. |
+| E1–E3 fonctionnels (GPIO, anti-rebond, défilement User) | 25 sept. | ✅ fait | 26 sept. |
+| E4 codé (`estop_init`, `EXTI2_IRQHandler`) | avant la séance 2 | ✅ fait | 26 sept. |
+| E5–E9 codés, compilation sans avertissement | avant la séance 2 | ✅ fait | 2 oct. |
+| Essais T1–T10 sur la carte | séance 2 | ✅ tous conformes (T6 : voir tableau des essais) | 2 oct. |
+| Démonstration devant l'assistant | séance 2 | ⏳ | |
+| Fiche périphérique « DEL et boutons » | 7 oct. | ⏳ | |
+| Brouillon du rapport | 7 oct. | ⏳ | |
+| Relecture croisée du rapport | 8 oct. | ⏳ | |
+| Remise sur Brightspace | 9 oct., 23 h 59 | ⏳ | |
 
 ## Journal des séances
 
@@ -66,7 +75,7 @@ Jalons internes du lab 1 :
 - Décisions : fenêtre d'anti-rebond de 30 ms (milieu de 20–50 ms); alternance avant/arrière par une variable en .bss plutôt que par des états ARRÊT distincts.
 - Difficultés et solutions :
 - Essais et mesures :
-- Validations Git :
+- Validations Git : `b0dad15` (Mouhammad Diagne, 26 sept., dépôt du projet avec `estop.s`); `9b25d34` (Idriss Toure, 26 sept., E1–E3 et jalon J1).
 
 ### Séance 2 — 29 sept. / 2 oct. 2026 — réalise : Mamadou Racine / valide : Mouhammad Diagne
 - Objectifs : E4 à E9, mesures T4 à T6, essais T7 à T10, démonstration.
@@ -75,28 +84,52 @@ Jalons internes du lab 1 :
   - `delay_ms` par SysTick en scrutation (1 ms = 4000 cycles à MSI 4 MHz) plutôt que par boucle calibrée : la période de la boucle principale reste exactement 1 ms, quelle que soit la durée de `fsm_step`.
   - `button_pressed` est appelée à chaque pas pour User et Touch En, même en urgence, afin que l'anti-rebond reste à jour (un appui maintenu pendant l'urgence ne produit pas d'événement à la sortie).
   - `led_set` masque les interruptions (PRIMASK) pendant quelques cycles : l'ISR E-Stop ne peut pas s'intercaler entre « tout éteindre » et « allumer » (E9).
+  - Mesures à l'oscilloscope non réalisées : l'assistant a indiqué qu'elles n'étaient pas exigées.
 - Difficultés et solutions :
-- Essais et mesures :
-- Validations Git :
+  - Les variables (`etat`, `touch_enabled`, …) n'affichaient aucune valeur dans Live Expressions : le code étant en assembleur, le débogueur ne connaît pas leur type. Solution : écrire `*(unsigned int*)&etat`.
+  - Lecture des boutons par adresse : erreur de port pour PC13 (adresse de GPIOB au lieu de GPIOC). Corrigé : IDR de GPIOC = `0x42020810`, IDR de GPIOB = `0x42020410`.
+  - Une DEL clignotant rouge/vert « toute seule » était LD4 COM (activité du ST-LINK pendant le débogage), et non une DEL du programme (LD1, LD2, LD3).
+- Essais et mesures : T1 à T10 réalisés sur la carte le 2 oct., tous conformes (voir le tableau des essais).
+- Validations Git : `4025222` (Idriss Toure, 2 oct., E4 à E9).
 
 ## Tableau des essais (T1 à T10)
 | Essai | Date | Résultat observé | Verdict | Preuve (fichier) |
 |---|---|---|---|---|
-| T1 Réinitialisation | | | | |
-| T2 Cycle User | | | | |
-| T3 Anti-rebond | | | | |
-| T4 Niveaux logiques | | | | |
-| T5 E-Stop | | | | |
-| T6 Clignotement | | | | |
-| T7 Acquittement | | | | |
-| T8 User ignoré en urgence | | | | |
-| T9 Touch En hors urgence | | | | |
-| T10 Robustesse | | | | |
+| T1 Réinitialisation (E1) | 2 oct. | Après NRST et au lancement du débogueur : seule LD3 (rouge) allumée, `etat = 0`. | ✅ Conforme | Capture débogueur (ODR, `etat`) à ajouter |
+| T2 Cycle User (E2) | 2 oct. | 4 appuis : rouge → verte → rouge → bleue → rouge, une seule DEL à la fois; `etat` 0 → 1 → 0 → 2 → 0. | ✅ Conforme | Vidéo à ajouter |
+| T3 Anti-rebond (E3) | 2 oct. | 20 appuis : `compteur_transitions` + 20 exactement; appui maintenu 2 s : + 1. | ✅ Conforme | Capture Live Expressions à ajouter |
+| T4 Niveaux logiques | 2 oct. | Lecture de IDR dans le débogueur : User (PC13), E-Stop (PB2), Touch En (PB5) = 0 relâché, 1 appuyé. Hypothèses de `registres.inc` confirmées (actifs hauts, `PUPDR` = 00, aucune entrée flottante observée). | ✅ Conforme | Tableau ci-dessous |
+| T5 E-Stop (E4) | 2 oct. | Depuis la verte puis depuis la bleue : la DEL s'éteint immédiatement, la rouge clignote, `etat = 3`. Délai non mesuré (oscilloscope non exigé). | ✅ Conforme | Capture Live Expressions à ajouter |
+| T6 Clignotement (E5, E8) | 2 oct. | Rouge clignotante environ 2 Hz en urgence, verte et bleue éteintes. Période théorique 500 ms (250 + 250 appels de `fsm_step` cadencés par SysTick à 1 ms). Oscilloscope non exigé. | ✅ Conforme (visuel) | Chronométrage de 20 périodes à faire (≈ 10 s attendues) |
+| T7 Acquittement (E6) | 2 oct. | Touch En avec E-Stop maintenu : refus, `etat` reste à 3. E-Stop relâché sans action : pas de reprise. Touch En avec E-Stop relâché : rouge fixe, `etat = 0`. | ✅ Conforme | Capture Live Expressions à ajouter |
+| T8 User ignoré en urgence (E5) | 2 oct. | 3 appuis User en urgence : aucun changement, `etat` reste à 3. User fonctionne de nouveau après l'acquittement. | ✅ Conforme | Relevé de `etat` |
+| T9 Touch En hors urgence (E7) | 2 oct. | En ARRÊT puis en MARCHE_AVANT : `touch_enabled` 0 → 1 → 0, extinction brève visible de la DEL active, `etat` inchangé. | ✅ Conforme | Capture Live Expressions à ajouter |
+| T10 Robustesse (E9) | 2 oct. | User + Touch En simultanés; E-Stop pendant un appui User; E-Stop pendant l'extinction brève; appuis User répétés en urgence : jamais deux DEL allumées, jamais de sortie d'urgence sans Touch En. | ✅ Conforme | Description |
+
+Mesures de T4 (lecture de `GPIOx_IDR` dans le débogueur) :
+
+| Bouton | Broche | Relâché | Appuyé | Niveau actif | PUPDR |
+|---|---|---|---|---|---|
+| User | PC13 | 0 | 1 | haut | 00 (tirage externe sur la Nucleo) |
+| E-Stop | PB2 | 0 | 1 | haut | 00 |
+| Touch En | PB5 | 0 | 1 | haut | 00 |
 
 ## Routine conservée pour L3-A
-- Routine : `button_pressed` ou `led_set`
-- Interface :
-- Cas d'essai :
+- Routine : `button_pressed` (anti-rebond et détection de front), dans `Core/Src/buttons.s`.
+- Interface : `uint32_t button_pressed(uint32_t id);` — R0 = identifiant (0 User, 1 E-Stop, 2 Touch En) → R0 = 1 si un appui vient d'être validé, 0 sinon. Appelée toutes les 1 ms. Fenêtre de 30 échantillons consécutifs (`ANTIREBOND_MS`). État conservé en .bss : `btn_valide[3]`, `btn_compteur[3]`. AAPCS : `push {r4, r5, r6, lr}`, appelle `button_raw`.
+- Cas d'essai (à rejouer à l'identique sur la version C du lab 3) :
+
+| Cas | Entrée (niveau brut, 1 échantillon par ms) | Résultat attendu |
+|---|---|---|
+| 1 | Bouton relâché en permanence | 0 à chaque appel |
+| 2 | Appui stable de 60 ms | un seul 1, au 30e échantillon à 1 |
+| 3 | Appui maintenu 2 s | un seul 1 |
+| 4 | Appui de 29 ms puis relâché | jamais 1 |
+| 5 | Rebonds : 5 ms à 1, 5 ms à 0, répétés 10 fois | jamais 1 |
+| 6 | 20 appuis de 60 ms séparés de 60 ms | exactement 20 fois 1 |
+| 7 | Relâchement après un appui validé | jamais 1 (le relâchement est validé mais ne produit pas d'événement) |
+| 8 | Identifiant invalide (3) | 0 |
+- Résultats (lab 1) : cas 3 et 6 vérifiés sur la carte (T3); cas 2, 4 et 5 vérifiés en simulation du binaire (durées exactes impossibles à produire à la main); cas 1, 7 et 8 à consigner.
 
 ## Déclaration des sources et de l'usage d'outils d'IA générative
 - Sources : code de départ CEG3536_Lab1_Demarrage (Brightspace); RM0438; manuel Zhu, 4e éd.

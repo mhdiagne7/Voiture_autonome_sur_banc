@@ -84,7 +84,7 @@ Jalons internes du lab 1 :
   - `delay_ms` par SysTick en scrutation (1 ms = 4000 cycles à MSI 4 MHz) plutôt que par boucle calibrée : la période de la boucle principale reste exactement 1 ms, quelle que soit la durée de `fsm_step`.
   - `button_pressed` est appelée à chaque pas pour User et Touch En, même en urgence, afin que l'anti-rebond reste à jour (un appui maintenu pendant l'urgence ne produit pas d'événement à la sortie).
   - `led_set` masque les interruptions (PRIMASK) pendant quelques cycles : l'ISR E-Stop ne peut pas s'intercaler entre « tout éteindre » et « allumer » (E9).
-  - Mesures à l'oscilloscope non réalisées : l'assistant a indiqué qu'elles n'étaient pas exigées.
+  - Mesures à l'oscilloscope et captures d'écran non réalisées : l'assistant a indiqué qu'elles n'étaient pas exigées.
 - Difficultés et solutions :
   - Les variables (`etat`, `touch_enabled`, …) n'affichaient aucune valeur dans Live Expressions : le code étant en assembleur, le débogueur ne connaît pas leur type. Solution : écrire `*(unsigned int*)&etat`.
   - Lecture des boutons par adresse : erreur de port pour PC13 (adresse de GPIOB au lieu de GPIOC). Corrigé : IDR de GPIOC = `0x42020810`, IDR de GPIOB = `0x42020410`.
@@ -95,15 +95,15 @@ Jalons internes du lab 1 :
 ## Tableau des essais (T1 à T10)
 | Essai | Date | Résultat observé | Verdict | Preuve (fichier) |
 |---|---|---|---|---|
-| T1 Réinitialisation (E1) | 2 oct. | Après NRST et au lancement du débogueur : seule LD3 (rouge) allumée, `etat = 0`. | ✅ Conforme | Capture débogueur (ODR, `etat`) à ajouter |
-| T2 Cycle User (E2) | 2 oct. | 4 appuis : rouge → verte → rouge → bleue → rouge, une seule DEL à la fois; `etat` 0 → 1 → 0 → 2 → 0. | ✅ Conforme | Vidéo à ajouter |
-| T3 Anti-rebond (E3) | 2 oct. | 20 appuis : `compteur_transitions` + 20 exactement; appui maintenu 2 s : + 1. | ✅ Conforme | Capture Live Expressions à ajouter |
+| T1 Réinitialisation (E1) | 2 oct. | Après NRST et au lancement du débogueur : seule LD3 (rouge) allumée, `etat = 0`. | ✅ Conforme | Relevé débogueur (ODR, `etat`) |
+| T2 Cycle User (E2) | 2 oct. | 4 appuis : rouge → verte → rouge → bleue → rouge, une seule DEL à la fois; `etat` 0 → 1 → 0 → 2 → 0. | ✅ Conforme | Observation |
+| T3 Anti-rebond (E3) | 2 oct. | 20 appuis : `compteur_transitions` + 20 exactement; appui maintenu 2 s : + 1. | ✅ Conforme | Relevé Live Expressions |
 | T4 Niveaux logiques | 2 oct. | Lecture de IDR dans le débogueur : User (PC13), E-Stop (PB2), Touch En (PB5) = 0 relâché, 1 appuyé. Hypothèses de `registres.inc` confirmées (actifs hauts, `PUPDR` = 00, aucune entrée flottante observée). | ✅ Conforme | Tableau ci-dessous |
-| T5 E-Stop (E4) | 2 oct. | Depuis la verte puis depuis la bleue : la DEL s'éteint immédiatement, la rouge clignote, `etat = 3`. Délai non mesuré (oscilloscope non exigé). | ✅ Conforme | Capture Live Expressions à ajouter |
-| T6 Clignotement (E5, E8) | 2 oct. | Rouge clignotante environ 2 Hz en urgence, verte et bleue éteintes. Période théorique 500 ms (250 + 250 appels de `fsm_step` cadencés par SysTick à 1 ms). Oscilloscope non exigé. | ✅ Conforme (visuel) | Chronométrage de 20 périodes à faire (≈ 10 s attendues) |
-| T7 Acquittement (E6) | 2 oct. | Touch En avec E-Stop maintenu : refus, `etat` reste à 3. E-Stop relâché sans action : pas de reprise. Touch En avec E-Stop relâché : rouge fixe, `etat = 0`. | ✅ Conforme | Capture Live Expressions à ajouter |
+| T5 E-Stop (E4) | 2 oct. | Depuis la verte puis depuis la bleue : la DEL s'éteint immédiatement, la rouge clignote, `etat = 3`. Délai non mesuré (oscilloscope non exigé). | ✅ Conforme | Relevé Live Expressions |
+| T6 Clignotement (E5, E8) | 2 oct. | Rouge clignotante à environ 2 Hz (observé à l'œil) en urgence, verte et bleue éteintes. Période théorique 500 ms (250 + 250 appels de `fsm_step` cadencés par SysTick à 1 ms). Oscilloscope non exigé. | ✅ Conforme (visuel) | Observation |
+| T7 Acquittement (E6) | 2 oct. | Touch En avec E-Stop maintenu : refus, `etat` reste à 3. E-Stop relâché sans action : pas de reprise. Touch En avec E-Stop relâché : rouge fixe, `etat = 0`. | ✅ Conforme | Relevé Live Expressions |
 | T8 User ignoré en urgence (E5) | 2 oct. | 3 appuis User en urgence : aucun changement, `etat` reste à 3. User fonctionne de nouveau après l'acquittement. | ✅ Conforme | Relevé de `etat` |
-| T9 Touch En hors urgence (E7) | 2 oct. | En ARRÊT puis en MARCHE_AVANT : `touch_enabled` 0 → 1 → 0, extinction brève visible de la DEL active, `etat` inchangé. | ✅ Conforme | Capture Live Expressions à ajouter |
+| T9 Touch En hors urgence (E7) | 2 oct. | En ARRÊT puis en MARCHE_AVANT : `touch_enabled` 0 → 1 → 0, extinction brève visible de la DEL active, `etat` inchangé. | ✅ Conforme | Relevé Live Expressions |
 | T10 Robustesse (E9) | 2 oct. | User + Touch En simultanés; E-Stop pendant un appui User; E-Stop pendant l'extinction brève; appuis User répétés en urgence : jamais deux DEL allumées, jamais de sortie d'urgence sans Touch En. | ✅ Conforme | Description |
 
 Mesures de T4 (lecture de `GPIOx_IDR` dans le débogueur) :
@@ -129,7 +129,7 @@ Mesures de T4 (lecture de `GPIOx_IDR` dans le débogueur) :
 | 6 | 20 appuis de 60 ms séparés de 60 ms | exactement 20 fois 1 |
 | 7 | Relâchement après un appui validé | jamais 1 (le relâchement est validé mais ne produit pas d'événement) |
 | 8 | Identifiant invalide (3) | 0 |
-- Résultats (lab 1) : cas 3 et 6 vérifiés sur la carte (T3); cas 2, 4 et 5 vérifiés en simulation du binaire (durées exactes impossibles à produire à la main); cas 1, 7 et 8 à consigner.
+- Résultats (lab 1) : cas 3 et 6 vérifiés sur la carte (T3); cas 1, 2, 4, 5, 7 et 8 vérifiés en simulation du binaire (durées exactes ou entrées impossibles à produire à la main). Tous conformes.
 
 ## Déclaration des sources et de l'usage d'outils d'IA générative
 - Sources : code de départ CEG3536_Lab1_Demarrage (Brightspace); RM0438; manuel Zhu, 4e éd.

@@ -90,6 +90,7 @@ Jalons internes du lab 1 :
   - Lecture des boutons par adresse : erreur de port pour PC13 (adresse de GPIOB au lieu de GPIOC). Corrigé : IDR de GPIOC = `0x42020810`, IDR de GPIOB = `0x42020410`.
   - Une DEL clignotant rouge/vert « toute seule » était LD4 COM (activité du ST-LINK pendant le débogage), et non une DEL du programme (LD1, LD2, LD3).
 - Essais et mesures : T1 à T10 réalisés sur la carte le 2 oct., tous conformes (voir le tableau des essais).
+- Après la séance (9 oct.) : énoncé v1.2 (mesures aux broches retirées, T6 par `DWT_CYCCNT`). Ajout de `blink_cycles` dans `fsm.s` (écart de `DWT_CYCCNT` entre deux basculements de la rouge, attendu 1 000 000 cycles = 250 ms à 4 MHz). Vérifié en simulation du binaire ; non relevé sur la carte, le laboratoire étant fermé.
 - Validations Git : `4025222` (Idriss Toure, 2 oct., E4 à E9).
 
 ## Tableau des essais (T1 à T10)

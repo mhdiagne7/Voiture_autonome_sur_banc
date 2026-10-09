@@ -54,6 +54,11 @@ clignote_phase:         .space  4   /* 0 rouge éteinte, 1 rouge allumée (E5)  
 
 touch_signal_compteur:  .space  4   /* appels restants d'extinction brève (E7)    */
 
+    .global blink_cycles
+blink_cycles:           .space  4   /* T6 : cycles entre deux basculements de la rouge */
+
+blink_dernier:          .space  4   /* T6 : DWT_CYCCNT au basculement précédent   */
+
 
 /* -------------------------------------------------------------------------
  * Table état -> DEL (un octet par état)
@@ -117,6 +122,26 @@ fsm_init:
     ldr     r0, =prochain_sens
     str     r1, [r0]
 
+    /* Mesure du clignotement (T6) */
+    ldr     r0, =blink_cycles
+    str     r1, [r0]
+    ldr     r0, =blink_dernier
+    str     r1, [r0]
+
+    /* T6 : démarrer le compteur de cycles DWT_CYCCNT.
+     * DEMCR.TRCENA active le bloc DWT, puis DWT_CTRL.CYCCNTENA lance le
+     * comptage : CYCCNT augmente de 1 à chaque cycle d'horloge (4 MHz). */
+    ldr     r0, =DEMCR
+    ldr     r2, [r0]
+    orr     r2, r2, #DEMCR_TRCENA
+    str     r2, [r0]
+    ldr     r0, =DWT_CYCCNT
+    str     r1, [r0]                    /* CYCCNT = 0 */
+    ldr     r0, =DWT_CTRL
+    ldr     r2, [r0]
+    orr     r2, r2, #DWT_CTRL_CYCCNTENA
+    str     r2, [r0]
+
     /* Afficher la DEL correspondant à ETAT_ARRET */
     bl      fsm_maj_del
 
@@ -175,6 +200,12 @@ fsm_step:
     str     r1, [r0]
     movs    r1, #1
     ldr     r0, =clignote_phase
+    str     r1, [r0]
+
+    /* T6 : instant de départ de la première demi-période */
+    ldr     r0, =DWT_CYCCNT
+    ldr     r1, [r0]
+    ldr     r0, =blink_dernier
     str     r1, [r0]
 
 
@@ -300,10 +331,13 @@ fsm_step_fin:
  *   ARRÊT_URGENCE : E5 — clignote_compteur compte les appels ; tous les
  *                   CLIGNOTEMENT_DEMI_MS / PERIODE_SCRUTATION_MS (250) appels,
  *                   clignote_phase s'inverse : 250 ms allumée, 250 ms éteinte.
+ *                   T6 : à chaque inversion, l'écart de DWT_CYCCNT avec
+ *                   l'inversion précédente est rangé dans blink_cycles.
  *   Autres états  : E7 — tant que touch_signal_compteur > 0, le décrémenter
  *                   et éteindre (LED_AUCUNE) ; sinon DEL de etat_vers_del.
  * AAPCS : appelle led_set -> push {r4, lr}. r4 = état courant.
- *         Registres modifiés : r0-r3 (r4 restauré).
+ *         Registres modifiés : r0-r3, r12 (r4 restauré ; r12 est un registre
+ *         de travail que l'appelé peut modifier).
  * ========================================================================= */
 
     .type   fsm_maj_del, %function
@@ -331,6 +365,18 @@ fsm_maj_del:
     ldr     r2, =clignote_phase
     ldr     r3, [r2]
     eor     r3, r3, #1
+    str     r3, [r2]
+
+    /* T6 : blink_cycles = CYCCNT - CYCCNT du basculement précédent.
+     * Attendu : 250 ms × 4 MHz = 1 000 000 cycles (demi-période).
+     * La soustraction sur 32 bits reste juste si CYCCNT a débordé. */
+    ldr     r2, =DWT_CYCCNT
+    ldr     r3, [r2]                    /* r3 = instant actuel */
+    ldr     r2, =blink_dernier
+    ldr     r12, [r2]                   /* r12 = instant précédent */
+    str     r3, [r2]
+    sub     r3, r3, r12
+    ldr     r2, =blink_cycles
     str     r3, [r2]
 
 fsm_clignote_garder:

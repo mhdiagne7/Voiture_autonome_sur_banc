@@ -57,6 +57,13 @@
     .equ SYSTICK_CTRL_CLKSOURCE,(1 << 2)    /* 1 = horloge processeur        */
     .equ SYSTICK_CTRL_COUNTFLAG,(1 << 16)   /* 1 = passage par 0 (effacé à la lecture) */
 
+/* ---- DWT : compteur de cycles (PM0264 / ARMv8-M), essai T6 ------------- */
+    .equ DEMCR,                 0xE000EDFC  /* Debug Exception and Monitor Control */
+    .equ DEMCR_TRCENA,          (1 << 24)   /* active DWT et ITM             */
+    .equ DWT_CTRL,              0xE0001000
+    .equ DWT_CTRL_CYCCNTENA,    (1 << 0)    /* lance CYCCNT                  */
+    .equ DWT_CYCCNT,            0xE0001004  /* +1 par cycle d'horloge        */
+
 /* ---- Brochage de la plateforme (guide, p. 25-29) ---------------------- */
     .equ LED_ROUGE_PIN,         9           /* LD3, PA9                      */
     .equ LED_VERTE_PIN,         7           /* LD1, PC7                      */

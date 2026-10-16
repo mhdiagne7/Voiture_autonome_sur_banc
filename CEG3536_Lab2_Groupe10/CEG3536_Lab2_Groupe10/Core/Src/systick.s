@@ -1,6 +1,5 @@
 /* ---------------------------------------------------------------------------
  * systick.s — base de temps de 1 ms par SysTick (CEG 3536, laboratoire 2)
- *             — SQUELETTE À COMPLÉTER
  *
  * Routines exportées : systick_init, SysTick_Handler, delay_ms
  * Variables (.bss)   : ticks_ms, tick_1ms
@@ -10,10 +9,7 @@
  * Même interface : r0 = durée en ms. Elle n'est plus appelée dans la boucle
  * principale, cadencée par tick_1ms (E10).
  *
- * Fourni : SysTick_Handler. À écrire : systick_init et delay_ms.
- * Tant que systick_init n'est pas écrite, SysTick n'interrompt jamais et la
- * boucle principale attend tick_1ms indéfiniment : c'est la première tâche
- * de la séance 1 (la DEL rouge de fsm_init s'allume quand même : E1).
+ * SysTick_Handler fourni ; systick_init et delay_ms écrites (E10).
  * ------------------------------------------------------------------------- */
 #include "registres.inc"
 #include "registres_lab2.inc"
@@ -42,11 +38,35 @@ tick_1ms:       .space  4   /* 1 à chaque interruption ; consommé par main    
  *   CTRL = SYSTICK_CTRL_CLKSOURCE | SYSTICK_CTRL_TICKINT | SYSTICK_CTRL_ENABLE
  * Vérifier au débogueur : SYSTICK_LOAD = 0xF9F, SYSTICK_CTRL = 0x7 (bit 16
  * COUNTFLAG peut apparaître), SCB_SHPR3 = 0x40000000, ticks_ms qui avance.
- * Registres modifiés : r0-r2 (routine feuille). À COMPLÉTER (E10).          */
+ * Registres modifiés : r0, r1 (routine feuille).                            */
     .global systick_init
     .type   systick_init, %function
 systick_init:
-    /* À COMPLÉTER */
+    /* LOAD = periode_us × (cycles par µs) − 1 = 4 × 1000 − 1 = 3999 */
+    movs    r1, #(HORLOGE_HZ / 1000000)
+    muls    r0, r1, r0
+    subs    r0, r0, #1
+    ldr     r1, =SYSTICK_LOAD
+    str     r0, [r1]
+
+    /* VAL = 0 : le compteur repart de LOAD ; compteurs logiciels à 0 */
+    movs    r0, #0
+    ldr     r1, =SYSTICK_VAL
+    str     r0, [r1]
+    ldr     r1, =ticks_ms
+    str     r0, [r1]
+    ldr     r1, =tick_1ms
+    str     r0, [r1]
+
+    /* Priorité 2 (sous E-Stop et encodeur) : un seul octet de SHPR3 */
+    movs    r0, #(PRIO_SYSTICK << PRIO_POS)
+    ldr     r1, =SCB_SHPR3_SYSTICK
+    strb    r0, [r1]
+
+    /* Horloge processeur, interruption activée, compteur en marche : 0x7 */
+    movs    r0, #(SYSTICK_CTRL_CLKSOURCE | SYSTICK_CTRL_TICKINT | SYSTICK_CTRL_ENABLE)
+    ldr     r1, =SYSTICK_CTRL
+    str     r0, [r1]
     bx      lr
     .size   systick_init, .-systick_init
 
@@ -71,11 +91,16 @@ SysTick_Handler:
  * boucler tant que (ticks_ms - r1) < r0 en NON SIGNÉ (subs puis cmp/bhs) :
  * correct même si ticks_ms déborde. Précision : -1/+0 ms. Requiert
  * systick_init et interruptions activées (jamais depuis une ISR).
- * Registres modifiés : r1, r2 (r0 conservé ; routine feuille).
- * À COMPLÉTER (E10). Le squelette retourne immédiatement.                   */
+ * Registres modifiés : r1-r3 (r0 conservé ; routine feuille).              */
     .global delay_ms
     .type   delay_ms, %function
 delay_ms:
-    /* À COMPLÉTER */
+    ldr     r2, =ticks_ms
+    ldr     r1, [r2]                    /* r1 = ticks_ms au départ */
+delay_ms_boucle:
+    ldr     r3, [r2]
+    subs    r3, r3, r1                  /* r3 = ms écoulées (non signé) */
+    cmp     r3, r0
+    blo     delay_ms_boucle             /* tant que écoulé < r0 */
     bx      lr
     .size   delay_ms, .-delay_ms

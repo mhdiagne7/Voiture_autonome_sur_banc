@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
  * motor.s — commande du moteur : PWM TIM1_CH1 et direction AI1/AI2/STB
- *           (CEG 3536, laboratoire 2) — SQUELETTE À COMPLÉTER
+ *           (CEG 3536, laboratoire 2)
  *
  * Routines exportées (AAPCS) : motor_init, motor_set_pwm, motor_set_dir,
  *                              motor_stop_now
@@ -14,7 +14,7 @@
  *
  * Fourni : horloges, GPIO (PB10, PB11, PE15 en sortie, PE9 en AF1),
  *          motor_set_pwm, motor_stop_now.
- * À écrire : configuration de TIM1 (étape 4 de motor_init, E2) et la règle
+ * Écrits : configuration de TIM1 (étape 4 de motor_init, E2) et la règle
  *            de sens de motor_set_dir (E3).
  * ------------------------------------------------------------------------- */
 #include "registres.inc"
@@ -94,19 +94,55 @@ motor_init:
     bic     r1, r1, #(3 << (2 * MOTOR_STB_PIN))
     str     r1, [r0, #GPIO_PUPDR]
 
-    /* 4. TIM1 en PWM mode 1 sur la voie 1 — À COMPLÉTER (E2)
-     *   ldr r0, =TIM1_BASE
-     *   a) PSC = PWM_PSC ; ARR = PWM_ARR (ldr r1, =PWM_ARR) ; CCR1 = 0
-     *   b) CCMR1 : effacer CC1S (TIM_CCMR1_CC1S_MASK) et OC1M
-     *      (ldr r2, =TIM_CCMR1_OC1M_MASK ; bic), puis orr
-     *      (TIM_CCMR1_OC1M_PWM1 | TIM_CCMR1_OC1PE)
-     *   c) CCER : bic TIM_CCER_CC1P (actif haut), orr TIM_CCER_CC1E
-     *   d) CR1 |= TIM_CR1_ARPE
-     *   e) BDTR |= TIM_BDTR_MOE          (indispensable sur un temporisateur avancé)
-     *   f) EGR = TIM_EGR_UG              (charge PSC, ARR, CCR1), puis SR = 0
-     *   g) CR1 |= TIM_CR1_CEN            (le compteur tourne à 20 kHz)
+    /* 4. TIM1 en PWM mode 1 sur la voie 1 (E2)
+     * Fréquence = 4 MHz / (PSC + 1) / (ARR + 1) = 4 MHz / 1 / 200 = 20 kHz.
      * Vérifier au débogueur (SFRs > TIM1) : CR1 = 0x81, CCMR1 = 0x68,
-     * CCER = 0x1, ARR = 0xC7, BDTR = 0x8000 ; puis à l'oscilloscope (T3).   */
+     * CCER = 0x1, ARR = 0xC7, BDTR = 0x8000.                               */
+    ldr     r0, =TIM1_BASE
+
+    /* a) période et rapport cyclique initial */
+    movs    r1, #PWM_PSC
+    str     r1, [r0, #TIM_PSC]          /* PSC = 0 : compte à 4 MHz          */
+    ldr     r1, =PWM_ARR
+    str     r1, [r0, #TIM_ARR]          /* ARR = 199 : 200 pas = 50 µs        */
+    movs    r1, #0
+    str     r1, [r0, #TIM_CCR1]         /* CCR1 = 0 : sortie basse (0 %)     */
+
+    /* b) voie 1 en sortie, PWM mode 1, prérechargement de CCR1 */
+    ldr     r1, [r0, #TIM_CCMR1]
+    bic     r1, r1, #TIM_CCMR1_CC1S_MASK
+    ldr     r2, =TIM_CCMR1_OC1M_MASK
+    bic     r1, r1, r2
+    orr     r1, r1, #(TIM_CCMR1_OC1M_PWM1 | TIM_CCMR1_OC1PE)
+    str     r1, [r0, #TIM_CCMR1]        /* 0x68                              */
+
+    /* c) sortie OC1 activée, active à l'état haut */
+    ldr     r1, [r0, #TIM_CCER]
+    bic     r1, r1, #TIM_CCER_CC1P
+    orr     r1, r1, #TIM_CCER_CC1E
+    str     r1, [r0, #TIM_CCER]
+
+    /* d) prérechargement de ARR */
+    ldr     r1, [r0, #TIM_CR1]
+    orr     r1, r1, #TIM_CR1_ARPE
+    str     r1, [r0, #TIM_CR1]
+
+    /* e) validation principale des sorties : obligatoire sur TIM1 */
+    ldr     r1, [r0, #TIM_BDTR]
+    orr     r1, r1, #TIM_BDTR_MOE
+    str     r1, [r0, #TIM_BDTR]
+
+    /* f) événement de mise à jour : charge PSC, ARR et CCR1 dans les
+     *    registres actifs ; puis effacement du drapeau qu'il a levé */
+    movs    r1, #TIM_EGR_UG
+    str     r1, [r0, #TIM_EGR]
+    movs    r1, #0
+    str     r1, [r0, #TIM_SR]
+
+    /* g) démarrage du compteur : la PWM tourne à 20 kHz (à 0 %) */
+    ldr     r1, [r0, #TIM_CR1]
+    orr     r1, r1, #TIM_CR1_CEN
+    str     r1, [r0, #TIM_CR1]          /* 0x81                              */
 
     bx      lr
     .size   motor_init, .-motor_init
@@ -144,16 +180,58 @@ motor_set_pwm:
  *     jamais AI1 = AI2 = 1), puis STB = 1. Les masques combinés ne tiennent
  *     pas dans un immédiat : utiliser ldr r2, =(...).
  *   - autre valeur : refusé.
- * Registres modifiés : r0-r3 (routine feuille).
- * À COMPLÉTER (E3). Le squelette refuse tout : le moteur ne peut pas tourner
- * tant que la règle n'est pas écrite.                                       */
+ * Registres modifiés : r0-r3 (routine feuille).                            */
     .global motor_set_dir
     .type   motor_set_dir, %function
 motor_set_dir:
-    /* À COMPLÉTER : voir les étapes ci-dessus. Étiquettes suggérées :
-     * motor_set_dir_arret, motor_set_dir_arriere, motor_set_dir_ecrire,
-     * motor_set_dir_refus.                                                   */
-    movs    r0, #1                      /* refusé tant que non écrit         */
+    cmp     r0, #MOTOR_ARRET
+    beq     motor_set_dir_arret
+    cmp     r0, #MOTOR_AVANT
+    beq     motor_set_dir_avant
+    cmp     r0, #MOTOR_ARRIERE
+    beq     motor_set_dir_arriere
+    b       motor_set_dir_refus         /* valeur invalide                   */
+
+motor_set_dir_avant:
+    /* AI1 = 1 (moitié basse de BSRR), AI2 = 0 (moitié haute) */
+    ldr     r2, =((1 << MOTOR_AI1_PIN) | (1 << (MOTOR_AI2_PIN + 16)))
+    b       motor_set_dir_ecrire
+motor_set_dir_arriere:
+    /* AI1 = 0, AI2 = 1 */
+    ldr     r2, =((1 << (MOTOR_AI1_PIN + 16)) | (1 << MOTOR_AI2_PIN))
+
+motor_set_dir_ecrire:
+    /* Règle E3 : jamais de départ ni de changement de sens sous PWM */
+    ldr     r1, =TIM1_BASE
+    ldr     r3, [r1, #TIM_CCR1]
+    cmp     r3, #0
+    bne     motor_set_dir_refus
+    /* AI1 et AI2 en UNE écriture BSRR : jamais AI1 = AI2 = 1 */
+    ldr     r1, =GPIOB_BASE
+    str     r2, [r1, #GPIO_BSRR]
+    /* puis sortie de veille : STB = 1 */
+    ldr     r1, =GPIOE_BASE
+    mov     r2, #(1 << MOTOR_STB_PIN)
+    str     r2, [r1, #GPIO_BSRR]
+    movs    r0, #0                      /* accepté                           */
+    bx      lr
+
+motor_set_dir_arret:
+    /* Toujours accepté : CCR1 = 0, puis STB = 0, puis AI1 = AI2 = 0 */
+    ldr     r1, =TIM1_BASE
+    movs    r2, #0
+    str     r2, [r1, #TIM_CCR1]
+    ldr     r1, =GPIOE_BASE
+    mov     r2, #(1 << (MOTOR_STB_PIN + 16))
+    str     r2, [r1, #GPIO_BSRR]
+    ldr     r1, =GPIOB_BASE
+    mov     r2, #((1 << (MOTOR_AI1_PIN + 16)) | (1 << (MOTOR_AI2_PIN + 16)))
+    str     r2, [r1, #GPIO_BSRR]
+    movs    r0, #0
+    bx      lr
+
+motor_set_dir_refus:
+    movs    r0, #1                      /* refusé, sorties inchangées        */
     bx      lr
     .size   motor_set_dir, .-motor_set_dir
 

@@ -103,18 +103,18 @@ gpio_init:
  * Allume exactement la DEL demandée et éteint les autres, par BSRR
  * (écriture atomique : jamais de lecture-modification-écriture sur ODR).
  *
- * E9 : la séquence « tout éteindre puis allumer » est une section critique
- * (PRIMASK). Sans elle, l'ISR E-Stop pourrait allumer la rouge entre les deux
- * étapes, puis led_set allumerait la verte : deux DEL allumées. L'interruption
- * est seulement retardée de quelques cycles (quelques µs à 4 MHz), loin de la
- * limite de 10 ms. PRIMASK est restauré à sa valeur d'entrée (appel possible
- * avec les interruptions déjà masquées).
+ * Robustesse (E9 du lab 1, E12 du lab 2), sans masquage d'interruption
+ * (CPSID/CPSIE réservés au laboratoire 5) : si l'ISR E-Stop s'exécute entre
+ * « tout éteindre » et « allumer la verte ou la bleue », elle allume la rouge
+ * et lève estop_flag ; led_set relit alors estop_flag après avoir allumé et
+ * éteint de nouveau la verte ou la bleue. Deux DEL ne restent donc allumées
+ * ensemble que pendant 2 ou 3 instructions (environ 1 µs à 4 MHz), ce qui est
+ * invisible. Si l'ISR arrive après l'allumage, elle éteint elle-même la verte
+ * ou la bleue.
  * Registres modifiés : r1-r3 (r0 conservé, routine feuille).                */
     .global led_set
     .type   led_set, %function
 led_set:
-    mrs     r3, primask                 /* sauvegarder l'état de masquage */
-    cpsid   i                           /* début de section critique */
     /* 1) tout éteindre */
     ldr     r1, =GPIOA_BASE
     mov     r2, #(1 << (LED_ROUGE_PIN + 16))
@@ -136,7 +136,8 @@ led_set:
 led_set_rouge:
     ldr     r1, =GPIOA_BASE
     mov     r2, #(1 << LED_ROUGE_PIN)
-    b       led_set_allumer
+    str     r2, [r1, #GPIO_BSRR]        /* 3) allumer la rouge */
+    bx      lr
 led_set_verte:
     ldr     r1, =GPIOC_BASE
     mov     r2, #(1 << LED_VERTE_PIN)
@@ -145,8 +146,13 @@ led_set_bleue:
     ldr     r1, =GPIOB_BASE
     mov     r2, #(1 << LED_BLEUE_PIN)
 led_set_allumer:
-    str     r2, [r1, #GPIO_BSRR]        /* 3) allumer */
+    str     r2, [r1, #GPIO_BSRR]        /* 3) allumer la verte ou la bleue */
+    /* 4) l'ISR E-Stop est-elle passée entre 1) et 3) ? */
+    ldr     r3, =estop_flag
+    ldr     r3, [r3]
+    cbz     r3, led_set_fin
+    lsl     r2, r2, #16                 /* même broche, moitié « mise à 0 » */
+    str     r2, [r1, #GPIO_BSRR]        /* éteindre : la rouge reste seule */
 led_set_fin:
-    msr     primask, r3                 /* fin de section critique */
     bx      lr
     .size   led_set, .-led_set

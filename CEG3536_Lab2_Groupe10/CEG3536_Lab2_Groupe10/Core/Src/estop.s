@@ -16,6 +16,7 @@
  * (front montant) et EXTI_FPR1 (front descendant), par écriture de 1.
  * ------------------------------------------------------------------------- */
 #include "registres.inc"
+#include "registres_lab2.inc"
 
     .syntax unified
     .cpu    cortex-m33
@@ -155,20 +156,37 @@ estop_front_configure_fin:
  * Le matériel empile automatiquement r0-r3, r12, lr, pc, xPSR : une ISR
  * feuille peut utiliser r0-r3 sans les sauvegarder et retourne par bx lr.
  *
- * Étapes (E4) :
- *   1. état sûr immédiat, par BSRR (pas de lecture-modification-écriture) :
+ * Étapes (lab 1 E4, étendu au lab 2 E7) :
+ *   0. propulsion en sécurité EN PREMIER : motor_stop_now (CCR1 = 0,
+ *      STB = 0, AI1 = AI2 = 0), puis buzzer_set(1) et buzzer_continu = 1 ;
+ *   1. état sûr des DEL, par BSRR (pas de lecture-modification-écriture) :
  *        GPIOC_BSRR = 1 << (LED_VERTE_PIN + 16)   (verte éteinte)
  *        GPIOB_BSRR = 1 << (LED_BLEUE_PIN + 16)   (bleue éteinte)
  *        GPIOA_BSRR = 1 << LED_ROUGE_PIN          (rouge allumée)
  *   2. estop_flag = 1
  *   3. effacer la requête EXTI, attendre la fin de l'écriture (dsb), terminer.
- * Rien d'autre : pas de temporisation, pas de changement d'état ici.       */
+ * Rien d'autre : pas de temporisation, pas de changement d'état ici.
+ * L'ISR appelle deux routines feuilles (r0-r1 seulement) : bl écrase LR, qui
+ * contient EXC_RETURN ; il est donc sauvegardé par push {r4, lr} (8 octets,
+ * pile alignée) et restauré dans pc par pop {r4, pc}, ce qui déclenche le
+ * retour d'exception.                                                       */
 .global EXTI2_IRQHandler
 .type   EXTI2_IRQHandler, %function
 EXTI2_IRQHandler:
+    push    {r4, lr}
 
     /* ----------------------------------------------------
-     * 1. Mise en sécurité immédiate
+     * 0. Propulsion coupée (E7), puis son continu
+     * ---------------------------------------------------- */
+    bl      motor_stop_now              /* CCR1 = 0, STB = 0, AI1 = AI2 = 0  */
+    movs    r0, #1
+    bl      buzzer_set                  /* PA0 = 1                           */
+    ldr     r0, =buzzer_continu
+    movs    r1, #1
+    str     r1, [r0]                    /* buzzer_step garde le son          */
+
+    /* ----------------------------------------------------
+     * 1. Mise en sécurité des DEL
      * ---------------------------------------------------- */
 
     /* DEL verte PC7 OFF */
@@ -210,6 +228,6 @@ EXTI2_IRQHandler:
      * sinon le NVIC pourrait relancer l'ISR une deuxième fois. */
     dsb
 
-    bx      lr
+    pop     {r4, pc}                    /* pc = EXC_RETURN : retour d'exception */
 
 .size   EXTI2_IRQHandler, .-EXTI2_IRQHandler

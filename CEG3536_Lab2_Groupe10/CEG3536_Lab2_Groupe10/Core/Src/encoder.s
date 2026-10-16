@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
  * encoder.s — lecture de l'encodeur en quadrature par interruption EXTI0
- *             (CEG 3536, laboratoire 2) — SQUELETTE À COMPLÉTER
+ *             (CEG 3536, laboratoire 2)
  *
  * Routines exportées : encoder_init, EXTI0_IRQHandler, encoder_read
  * Variables (.bss)   : enc_count (signé), enc_repere, vitesse_fronts, sens_mesure
@@ -18,7 +18,7 @@
  * calcule la variation de enc_count depuis la lecture précédente.
  *
  * Fourni : encoder_init complète, effacement de la requête dans l'ISR.
- * À écrire : le comptage dans EXTI0_IRQHandler (E5) et encoder_read (E6).
+ * Écrits : le comptage dans EXTI0_IRQHandler (E5) et encoder_read (E6).
  * ------------------------------------------------------------------------- */
 #include "registres.inc"
 #include "registres_lab2.inc"
@@ -120,7 +120,26 @@ encoder_init:
     .global EXTI0_IRQHandler
     .type   EXTI0_IRQHandler, %function
 EXTI0_IRQHandler:
-    /* 1. et 2. À COMPLÉTER (E5) */
+    /* 1. une seule lecture de IDR : A et B pris au même instant */
+    ldr     r0, =GPIOB_BASE
+    ldr     r1, [r0, #GPIO_IDR]
+    /* r2, bit ENC_A_PIN = A xor B (B ramené à la position de A) */
+    eor     r2, r1, r1, lsr #(ENC_B_PIN - ENC_A_PIN)
+
+    /* 2. A = B -> +1 ; A != B -> -1 (inversé si ENC_SENS_INVERSE = 1) */
+    ldr     r0, =enc_count
+    ldr     r3, [r0]
+    tst     r2, #(1 << ENC_A_PIN)       /* Z = 1 si A = B                    */
+.if ENC_SENS_INVERSE
+    ite     eq
+    subeq   r3, r3, #1
+    addne   r3, r3, #1
+.else
+    ite     eq
+    addeq   r3, r3, #1
+    subne   r3, r3, #1
+.endif
+    str     r3, [r0]                    /* une seule écriture de enc_count   */
 
     /* 3. requête effacée */
     ldr     r0, =EXTI_BASE
@@ -141,16 +160,41 @@ EXTI0_IRQHandler:
  *      < 0 -> SENS_ARRIERE et valeur absolue (rsbs) ;
  *   c) si r0 != 0 : *r0 = sens ; sens_mesure = sens ; vitesse_fronts = |variation| ;
  *   d) retour r0 = |variation|.
- * Registres modifiés : r0-r3 (routine feuille). À COMPLÉTER (E6).           */
+ * Registres modifiés : r0-r3, r12 (routine feuille).                       */
     .global encoder_read
     .type   encoder_read, %function
 encoder_read:
-    /* À COMPLÉTER : le squelette ne mesure rien et retourne 0 */
+    /* a) lecture atomique de enc_count (une seule instruction LDR) */
+    ldr     r1, =enc_count
+    ldr     r1, [r1]                    /* r1 = compteur actuel              */
+    ldr     r2, =enc_repere
+    ldr     r3, [r2]                    /* r3 = compteur à la fenêtre précédente */
+    str     r1, [r2]                    /* nouveau repère                    */
+
+    /* b) variation signée et sens */
+    subs    r1, r1, r3                  /* r1 = variation (signée)           */
+    beq     encoder_read_immobile
+    bgt     encoder_read_avant
+    rsbs    r1, r1, #0                  /* valeur absolue                    */
+    movs    r12, #SENS_ARRIERE
+    b       encoder_read_ecrire
+encoder_read_avant:
+    movs    r12, #SENS_AVANT
+    b       encoder_read_ecrire
+encoder_read_immobile:
+    movs    r12, #SENS_IMMOBILE
+
+encoder_read_ecrire:
+    /* c) sens à l'adresse reçue (si non nulle), variables du débogueur */
     cmp     r0, #0
     it      ne
-    movne   r1, #SENS_IMMOBILE
-    it      ne
-    strne   r1, [r0]
-    movs    r0, #0
+    strne   r12, [r0]
+    ldr     r2, =sens_mesure
+    str     r12, [r2]
+    ldr     r2, =vitesse_fronts
+    str     r1, [r2]
+
+    /* d) retour : nombre de fronts dans la fenêtre */
+    mov     r0, r1
     bx      lr
     .size   encoder_read, .-encoder_read

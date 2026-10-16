@@ -1,7 +1,7 @@
-# CEG 3536 — Laboratoire 1 — construction en ligne de commande (facultatif)
+# CEG 3536 — Laboratoire 2 — construction en ligne de commande (facultatif)
 # Le projet se construit normalement dans STM32CubeIDE ; ce Makefile permet
 # de vérifier la compilation et de programmer la carte sans l'IDE.
-#   make          construire build/CEG3536_Lab1.elf et .bin
+#   make          construire build/CEG3536_Lab2.elf et .bin
 #   make flash    construire et programmer la carte (ST-LINK, SWD)
 #   make clean
 CLT   ?= C:/ST/STM32CubeCLT_1.21.0
@@ -10,7 +10,7 @@ OBJCPY = $(CLT)/GNU-tools-for-STM32/bin/arm-none-eabi-objcopy
 SIZE   = $(CLT)/GNU-tools-for-STM32/bin/arm-none-eabi-size
 PROG   = $(CLT)/STM32CubeProgrammer/bin/STM32_Programmer_CLI.exe
 
-TARGET  = CEG3536_Lab1
+TARGET  = CEG3536_Lab2
 BUILD   = build
 SRCDIR  = Core/Src
 STARTUP = Core/Startup/startup_stm32l552zetxq.s
@@ -36,7 +36,7 @@ all: $(BUILD)/$(TARGET).bin
 $(BUILD):
 	mkdir -p $(BUILD)
 
-$(BUILD)/%.o: $(SRCDIR)/%.s $(SRCDIR)/registres.inc | $(BUILD)
+$(BUILD)/%.o: $(SRCDIR)/%.s $(SRCDIR)/registres.inc $(SRCDIR)/registres_lab2.inc | $(BUILD)
 	$(CC) $(ASFLAGS) -c $< -o $@
 
 $(BUILD)/%.o: $(SRCDIR)/%.c | $(BUILD)

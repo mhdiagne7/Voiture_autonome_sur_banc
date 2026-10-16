@@ -1,6 +1,5 @@
 /* ---------------------------------------------------------------------------
  * buzzer.s — avertisseur sonore sur PA0, commande GPIO (CEG 3536, lab. 2)
- *            — SQUELETTE À COMPLÉTER
  *
  * Routines exportées : buzzer_init, buzzer_set, buzzer_bip, buzzer_step
  * Variables (.bss)   : buzzer_continu, buzzer_phase, buzzer_restant, buzzer_bips
@@ -15,7 +14,7 @@
  * il est positionné par EXTI2_IRQHandler et remis à 0 à l'acquittement.
  * Variante PWM (TIM2_CH1, AF1) admise si documentée.
  *
- * Fourni : buzzer_init, buzzer_set. À écrire : buzzer_bip, buzzer_step.
+ * buzzer_init et buzzer_set fournis ; buzzer_bip et buzzer_step écrits (E9).
  * ------------------------------------------------------------------------- */
 #include "registres.inc"
 #include "registres_lab2.inc"
@@ -95,11 +94,22 @@ buzzer_set_off:
  * n = 2 : double bip). Une séquence en cours est remplacée. n = 0 : rien.
  *   buzzer_bips = n - 1 ; buzzer_restant = BIP_MS ; buzzer_phase = 1.
  * Le son commence au prochain buzzer_step (au plus 1 ms plus tard).
- * Registres modifiés : r0-r2 (routine feuille). À COMPLÉTER (E9).           */
+ * Registres modifiés : r0, r1 (routine feuille).                            */
     .global buzzer_bip
     .type   buzzer_bip, %function
 buzzer_bip:
-    /* À COMPLÉTER */
+    cmp     r0, #0
+    beq     buzzer_bip_fin              /* n = 0 : rien                      */
+    subs    r0, r0, #1
+    ldr     r1, =buzzer_bips
+    str     r0, [r1]                    /* bips restant après le premier     */
+    movs    r0, #BIP_MS
+    ldr     r1, =buzzer_restant
+    str     r0, [r1]                    /* 100 ms de son                     */
+    movs    r0, #1
+    ldr     r1, =buzzer_phase
+    str     r0, [r1]                    /* phase 1 : son                     */
+buzzer_bip_fin:
     bx      lr
     .size   buzzer_bip, .-buzzer_bip
 
@@ -112,15 +122,66 @@ buzzer_bip:
  *                  BIP_SILENCE_MS, sinon phase 0 ;
  *       phase 2 -> phase 1 avec BIP_MS ;
  *     puis sortie = 1 en phase 1, 0 sinon.
+ * La sortie de cette ms est calculée AVANT la décrémentation : un bip dure
+ * donc exactement BIP_MS appels (100 ms).
  * Appelle buzzer_set : push {r4, lr} / pop {r4, pc} (alignement 8).
- * À COMPLÉTER (E9). Le squelette ne fait qu'appliquer buzzer_continu.       */
+ * r4 = sortie de cette ms (0/1). Registres modifiés : r0-r3, r12.           */
     .global buzzer_step
     .type   buzzer_step, %function
 buzzer_step:
     push    {r4, lr}
+
+    /* Son continu forcé (ARRÊT_URGENCE) : prioritaire sur les bips */
     ldr     r0, =buzzer_continu
     ldr     r0, [r0]
-    /* À COMPLÉTER : machine à états des bips (r0 = 1 si son continu) */
+    cmp     r0, #0
+    bne     buzzer_step_sortie          /* r0 != 0 : son                     */
+
+    ldr     r1, =buzzer_phase
+    ldr     r2, [r1]                    /* r2 = phase                        */
+    cmp     r2, #0
+    beq     buzzer_step_sortie          /* phase 0 : r0 = 0, silence         */
+
+    /* Sortie de cette ms : son en phase 1, silence en phase 2 */
+    movs    r4, #0
+    cmp     r2, #1
+    it      eq
+    moveq   r4, #1
+
+    /* Décompte de la phase */
+    ldr     r3, =buzzer_restant
+    ldr     r0, [r3]
+    subs    r0, r0, #1
+    str     r0, [r3]
+    bne     buzzer_step_applique        /* phase pas finie                   */
+
+    /* Fin de phase */
+    cmp     r2, #1
+    bne     buzzer_step_fin_silence
+    /* fin d'un son : encore des bips ? */
+    ldr     r12, =buzzer_bips
+    ldr     r0, [r12]
+    cmp     r0, #0
+    beq     buzzer_step_repos
+    subs    r0, r0, #1
+    str     r0, [r12]
+    movs    r0, #BIP_SILENCE_MS
+    str     r0, [r3]
+    movs    r2, #2                      /* phase 2 : silence entre deux bips */
+    b       buzzer_step_phase
+buzzer_step_repos:
+    movs    r2, #0                      /* phase 0 : séquence terminée       */
+    b       buzzer_step_phase
+buzzer_step_fin_silence:
+    movs    r0, #BIP_MS
+    str     r0, [r3]
+    movs    r2, #1                      /* phase 1 : bip suivant             */
+buzzer_step_phase:
+    str     r2, [r1]
+
+buzzer_step_applique:
+    mov     r0, r4
+buzzer_step_sortie:
     bl      buzzer_set
     pop     {r4, pc}
     .size   buzzer_step, .-buzzer_step

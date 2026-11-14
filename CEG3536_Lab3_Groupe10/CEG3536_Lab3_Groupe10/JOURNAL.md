@@ -1,22 +1,35 @@
 # JOURNAL.md — Journal d'équipe, CEG 3536, laboratoire 3 (automne 2026)
 
-Équipe : `<NomA>` et `<NomB>` — Section : `A01 / A02` — Dépôt Git : `<adresse>`
+Équipe (groupe 10) : Idriss Toure, Mouhammad Habiballah Diagne, Mamadou Racine — Section : A01 — Dépôt Git : https://github.com/mhdiagne7/Voiture_autonome_sur_banc
 
 ## Jalon J2 — module d'événements testé sur hôte
 
 | Plateforme | Compilateur et version | Commande | Résultat (cas réussis / échecs) | Date et validation Git |
 |---|---|---|---|---|
-| Windows | | `make` dans `hote/` | | |
-| Linux | | | | |
-| STM32 (cible) | arm-none-eabi-gcc | commande série `q` | | |
+| Windows 11 | gcc (MinGW) 4.8.1 | `gcc -std=gnu11 -Wall -Wextra -O0 -g -I../Core/Inc -o test_evq.exe test_evq.c ../Core/Src/evq.c ../Core/Src/evq_test.c` (mêmes options que `make` dans `hote/`) | 9 / 0 — « 9 cas, 0 echec(s) : OK », aucun avertissement | 2026-11-13 ; code dans le commit 58ce500 |
+| Linux (Ubuntu, WSL2, noyau 6.6.87) | gcc 15.2.0 | `make` dans `hote/` (mêmes options) | 9 / 0 — « 9 cas, 0 echec(s) : OK », aucun avertissement | 2026-11-13 ; code dans le commit 58ce500 |
+| STM32 (cible) | arm-none-eabi-gcc (STM32CubeIDE 2.2.0), -O0 | commande série `q` | 9 / 0 — trame `Q,echecs=0` | 2026-11-13 (séance 2) |
+
+Trace (identique sur les deux hôtes, sauf la première ligne) :
+
+```
+evq : capacite 32, sizeof(evq_event_t) = 12, int = 32 bits, long = 32 bits   (Windows)
+evq : capacite 32, sizeof(evq_event_t) = 12, int = 32 bits, long = 64 bits   (Linux)
+  cas 1 : reussi
+  ...
+  cas 9 : reussi
+9 cas, 0 echec(s) : OK
+```
+
+Saturation volontaire sur cible (commande `t`, 40 événements dans une file de 32) : débordements = 8 dans la télémétrie, trames continues, aucun blocage ; `z` remet le compteur à 0 (`Z,ok`).
 
 Cas ajoutés par l'équipe (au-delà des 9 fournis) :
 
 | Cas | Description | Résultat |
 |---|---|---|
-| 10 | | |
+| — | Aucun cas ajouté à ce jour : les 9 cas fournis couvrent les huit catégories exigées (vide, un élément, FIFO, plein, débordement, enroulement, vidage, compteur) | — |
 
-Différences observées entre hôtes (tailles des types, options, avertissements) :
+Différences observées entre hôtes (tailles des types, options, avertissements) : `long` vaut 32 bits sous Windows (modèle LLP64) et 64 bits sous Linux (LP64) ; `int` et `sizeof(evq_event_t)` = 12 octets sont identiques, car le module n'utilise que des types à taille fixe (`uint32_t`). Mêmes options, aucun avertissement avec gcc 4.8.1 ni gcc 15.2.0 ; même résultat que sur la cible.
 
 ## Rôles et rotation
 

@@ -20,7 +20,7 @@
  * Débit par voie = 4 MHz / (2 x (640,5 + 12,5)) ~ 3,06 kHz ; un tour du tampon
  * (64 échantillons par voie) dure ~ 20,9 ms, soit ~ 48 tours par seconde
  * (vérifié par adc_dma_tours, T4).
- * Vérification au débogueur : ADC1->CR = 0x1000000D (ADVREGEN, ADSTART, ADEN),
+ * Vérification au débogueur : ADC1->CR = 0x10000005 (ADVREGEN, ADSTART, ADEN),
  * ISR.ADRDY = 1, DMA1_Channel1->CNDTR qui décroît et se recharge, tampon qui
  * évolue quand on bouge le potentiomètre.
  * ------------------------------------------------------------------------- */
